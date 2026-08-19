@@ -1,0 +1,50 @@
+#!/bin/bash
+# JobMatrix — скрытый запуск (macOS .app, без терминала)
+
+MACOS_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUNDLE_DIR="$(cd "$MACOS_DIR/../.." && pwd)"     # .../JobMatrix.app
+APP_DIR="$(cd "$BUNDLE_DIR/.." && pwd)"          # .../launcher
+PROJECT="$(cd "$APP_DIR/.." && pwd)"             # корень проекта
+
+# Если .app скопирован в /Applications — ищем проект в типовых местах
+if [ ! -f "$PROJECT/config/settings.py" ]; then
+  for cand in "$HOME/JobMatrix" \
+              "$HOME/Documents/JobMatrix" \
+              "$HOME/Documents/Obsidian Vault/Programs/JobMatrix"; do
+    if [ -f "$cand/config/settings.py" ]; then PROJECT="$cand"; break; fi
+  done
+fi
+
+if [ ! -f "$PROJECT/config/settings.py" ]; then
+  osascript -e 'display alert "JobMatrix" message "Не найдена папка проекта JobMatrix"' >/dev/null 2>&1
+  exit 1
+fi
+
+cd "$PROJECT"
+
+PYTHON="$(command -v python3 || command -v python)"
+if [ -z "$PYTHON" ]; then
+  osascript -e 'display alert "JobMatrix" message "Python не найден. Установите python3."' >/dev/null 2>&1
+  exit 1
+fi
+
+# Уже запущен? Просто открываем браузер
+if curl -s http://localhost:8000/api/ping >/dev/null 2>&1; then
+  open "http://localhost:8000"
+  exit 0
+fi
+
+# Запуск в фоне, без окна
+mkdir -p data/logs
+nohup "$PYTHON" launcher/run.py >> data/logs/app.log 2>&1 &
+echo $! > data/jobmatrix.pid
+
+# Ждём подъёма сервера (до 30 сек)
+for i in $(seq 1 30); do
+  if curl -s http://localhost:8000/api/ping >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+
+open "http://localhost:8000"
+exit 0
+

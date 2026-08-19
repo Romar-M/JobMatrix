@@ -1,0 +1,31 @@
+#!/bin/bash
+# JobMatrixStop — скрытая остановка (macOS .app, без терминала)
+
+MACOS_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUNDLE_DIR="$(cd "$MACOS_DIR/../.." && pwd)"     # .../JobMatrixStop.app
+APP_DIR="$(cd "$BUNDLE_DIR/.." && pwd)"          # .../launcher
+PROJECT="$(cd "$APP_DIR/.." && pwd)"             # корень проекта
+
+if [ ! -d "$PROJECT" ]; then
+  for cand in "$HOME/JobMatrix" "$HOME/Documents/JobMatrix"; do
+    if [ -d "$cand" ]; then PROJECT="$cand"; break; fi
+  done
+fi
+
+# 1) Основной способ — по PID-файлу
+if [ -f "$PROJECT/data/jobmatrix.pid" ]; then
+  PID="$(cat "$PROJECT/data/jobmatrix.pid")"
+  if kill -0 "$PID" 2>/dev/null; then
+    kill "$PID" 2>/dev/null
+  fi
+  rm -f "$PROJECT/data/jobmatrix.pid"
+fi
+
+# 2) Запасной способ — по порту 8000
+if curl -s http://localhost:8000/api/ping >/dev/null 2>&1; then
+  lsof -ti :8000 | xargs kill 2>/dev/null
+fi
+
+osascript -e 'display notification "JobMatrix остановлен" with title "JobMatrix"' >/dev/null 2>&1
+exit 0
+

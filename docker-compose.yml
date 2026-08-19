@@ -1,0 +1,36 @@
+# JobMatrix — серверный режим (PostgreSQL + app)
+# Запуск: docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jobmatrix
+      POSTGRES_PASSWORD: jobmatrix
+      POSTGRES_DB: jobmatrix
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobmatrix"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      APP_MODE: server
+      DATABASE_URL: postgresql+psycopg2://jobmatrix:jobmatrix@db:5432/jobmatrix
+      # В демо-режиме на сервере тоже можно посмотреть, как всё работает:
+      DEMO_MODE: "true"
+      # Для боевого режима: DEMO_MODE: "false" + заполнить ключи сайтов
+      COLLECT_INTERVAL_MINUTES: "2"
+      AUTH_TOKEN: ""
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+
